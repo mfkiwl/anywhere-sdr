@@ -31,17 +31,17 @@ parsing = { path = "./crates/parsing" }
 rinex = { path = "./crates/rinex" }
 
 # Command line argument parsing
-clap = { version = "4.4", features = ["derive", "unicode", "wrap_help", "env"] }
+clap = { version = "4.5", features = ["derive", "unicode", "wrap_help", "env"] }
 
 # Data processing and parsing
-csv = { version = "1.3" }
+csv = { version = "1.4" }
 jiff = { version = "0.2" }
-pest = { version = "2.7" }
-pest_derive = { version = "2.7" }
+pest = { version = "2.8" }
+pest_derive = { version = "2.8" }
 
 # Hardware support
-nusb = { version = "0.1" }
-futures-lite = { version = "2.3" }
+nusb = { version = "0.2" }
+futures-lite = { version = "2.6" }
 
 # Concurrency and performance
 rayon = { version = "1.8" }

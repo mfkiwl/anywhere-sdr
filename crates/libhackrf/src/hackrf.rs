@@ -1,10 +1,10 @@
-use futures_lite::future::block_on;
+use std::time::Duration;
+
 use nusb::{
-    Device, DeviceInfo, Interface,
     transfer::{
-        ControlIn, ControlOut, ControlType, Direction, Queue, Recipient,
-        RequestBuffer,
+        ControlIn, ControlOut, ControlType, Recipient,
     },
+    Device, DeviceInfo, Interface, MaybeFuture, Endpoint,
 };
 
 use crate::{constants::*, enums::*, error::Error};
@@ -62,6 +62,9 @@ impl HackRF {
     /// found. It's the simplest way to connect to a `HackRF` when only one
     /// device is connected.
     ///
+    /// This operation is synchronous and blocks until the device is opened and
+    /// the interface is claimed via `.wait()`.
+    ///
     /// # Returns
     ///
     /// A new `HackRF` instance if a device was found and successfully opened.
@@ -89,8 +92,8 @@ impl HackRF {
         let devices = Self::list_devices()?;
         let deviceinfo = devices.first().ok_or(Error::InvalidDevice)?;
         let device_version = deviceinfo.device_version();
-        let device = deviceinfo.open()?;
-        let interface = device.claim_interface(0)?;
+        let device = deviceinfo.open().wait()?;
+        let interface = device.claim_interface(0).wait()?;
         Ok(Self {
             mode: DeviceMode::Off,
             device,
@@ -103,6 +106,9 @@ impl HackRF {
     ///
     /// This method allows you to connect to a specific `HackRF` device when
     /// multiple devices are connected to the system.
+    ///
+    /// This operation is synchronous and blocks until the device is opened and
+    /// the interface is claimed via `.wait()`.
     ///
     /// # Parameters
     ///
@@ -145,8 +151,8 @@ impl HackRF {
                 Error::InvalidSerialNumber(serial_number.as_ref().to_string())
             })?;
         let device_version = deviceinfo.device_version();
-        let device = deviceinfo.open()?;
-        let interface = device.claim_interface(0)?;
+        let device = deviceinfo.open().wait()?;
+        let interface = device.claim_interface(0).wait()?;
         Ok(Self {
             mode: DeviceMode::Off,
             device,
@@ -159,6 +165,9 @@ impl HackRF {
     ///
     /// This method scans the USB bus for connected `HackRF` devices and returns
     /// information about each device found.
+    ///
+    /// This operation is synchronous and blocks using `.wait()` to retrieve the
+    /// device list.
     ///
     /// # Returns
     ///
@@ -188,14 +197,13 @@ impl HackRF {
     /// }
     /// ```
     pub fn list_devices() -> Result<Vec<DeviceInfo>, Error> {
-        Ok(nusb::list_devices().map(|devices| {
-            devices
-                .filter(|device| {
-                    device.vendor_id() == HACKRF_USB_VID
-                        && device.product_id() == HACKRF_ONE_USB_PID
-                })
-                .collect::<Vec<DeviceInfo>>()
-        })?)
+        Ok(nusb::list_devices()
+            .wait()?
+            .filter(|device| {
+                device.vendor_id() == HACKRF_USB_VID
+                    && device.product_id() == HACKRF_ONE_USB_PID
+            })
+            .collect::<Vec<DeviceInfo>>())
     }
 
     /// Returns the maximum transmission unit (MTU) size for bulk transfers
@@ -252,7 +260,8 @@ impl HackRF {
     /// Sends a USB control request to the device and reads the response
     ///
     /// This is a low-level method used by other methods to communicate with the
-    /// device.
+    /// device. This operation blocks synchronously using `.wait()` until the
+    /// transfer completes.
     ///
     /// # Parameters
     ///
@@ -274,22 +283,28 @@ impl HackRF {
     fn read_control<const N: u16>(
         &self, request: Request, value: u16, index: u16,
     ) -> Result<Vec<u8>, Error> {
-        let data = block_on(self.interface.control_in(ControlIn {
-            control_type: ControlType::Vendor,
-            recipient: Recipient::Device,
-            request: request.into(),
-            value,
-            index,
-            length: N,
-        }))
-        .into_result()?;
+        let data = self
+            .interface
+            .control_in(
+                ControlIn {
+                    control_type: ControlType::Vendor,
+                    recipient: Recipient::Device,
+                    request: request.into(),
+                    value,
+                    index,
+                    length: N,
+                },
+                Duration::from_secs(1),
+            )
+            .wait()?;
         Ok(data)
     }
 
     /// Sends a USB control request with data to the device
     ///
     /// This is a low-level method used by other methods to communicate with the
-    /// device.
+    /// device. This operation blocks synchronously using `.wait()` until the
+    /// transfer completes.
     ///
     /// # Parameters
     ///
@@ -310,24 +325,20 @@ impl HackRF {
     fn write_control(
         &mut self, request: Request, value: u16, index: u16, data: &[u8],
     ) -> Result<(), Error> {
-        let result = block_on(self.interface.control_out(ControlOut {
-            control_type: ControlType::Vendor,
-            recipient: Recipient::Device,
-            request: request.into(),
-            value,
-            index,
-            data,
-        }));
-        let n = result.data.actual_length();
-        if n == data.len() {
-            Ok(result.status?)
-        } else {
-            Err(Error::ControlTransfer {
-                direction: Direction::In,
-                actual: n,
-                expected: data.len(),
-            })
-        }
+        self.interface
+            .control_out(
+                ControlOut {
+                    control_type: ControlType::Vendor,
+                    recipient: Recipient::Device,
+                    request: request.into(),
+                    value,
+                    index,
+                    data,
+                },
+                Duration::from_secs(1),
+            )
+            .wait()?;
+        Ok(())
     }
 
     /// Reads the board ID from the device
@@ -978,28 +989,40 @@ impl HackRF {
         Ok(())
     }
 
-    /// Gets a queue for receiving data from the device
+    /// Gets an endpoint for receiving data from the device
     ///
-    /// This method returns a queue that can be used to receive data from the
-    /// device in receive mode.
+    /// This method returns a `nusb::Endpoint` that can be used to receive data
+    /// from the device in receive mode.
     ///
     /// # Returns
     ///
-    /// A queue for receiving data.
-    pub fn rx_queue(&mut self) -> Queue<RequestBuffer> {
-        self.interface.bulk_in_queue(HACKRF_RX_ENDPOINT_ADDRESS)
+    /// A `nusb::Endpoint` for bulk IN transfers.
+    pub fn rx_queue(
+        &mut self,
+    ) -> Result<
+        Endpoint<nusb::transfer::Bulk, nusb::transfer::In>,
+        Error,
+    > {
+        Ok(self.interface
+            .endpoint(HACKRF_RX_ENDPOINT_ADDRESS)?)
     }
 
-    /// Gets a queue for sending data to the device
+    /// Gets an endpoint for sending data to the device
     ///
-    /// This method returns a queue that can be used to send data to the device
-    /// in transmit mode.
+    /// This method returns a `nusb::Endpoint` that can be used to send data to
+    /// the device in transmit mode.
     ///
     /// # Returns
     ///
-    /// A queue for sending data.
-    pub fn tx_queue(&mut self) -> Queue<Vec<u8>> {
-        self.interface.bulk_out_queue(HACKRF_TX_ENDPOINT_ADDRESS)
+    /// A `nusb::Endpoint` for bulk OUT transfers.
+    pub fn tx_queue(
+        &mut self,
+    ) -> Result<
+        Endpoint<nusb::transfer::Bulk, nusb::transfer::Out>,
+        Error,
+    > {
+        Ok(self.interface
+            .endpoint(HACKRF_TX_ENDPOINT_ADDRESS)?)
     }
 
     /// Stops receiving mode
