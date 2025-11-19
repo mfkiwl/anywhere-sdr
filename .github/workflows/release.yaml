@@ -5,8 +5,8 @@ permissions:
   contents: write # This allows the workflow to create, update, and delete tags and releases
 
 on:
-  schedule:
-    - cron: "0 0 * * *" # midnight UTC, daily nightly build from master
+  # schedule:
+  #   - cron: "0 0 * * *" # midnight UTC, daily nightly build from master
 
   workflow_dispatch:
 
@@ -45,7 +45,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: ${{ env.FETCH_DEPTH }}
 
@@ -74,7 +74,7 @@ jobs:
           cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/${{ matrix.asset_name }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.asset_name }}
           path: dist/${{ matrix.asset_name }}
@@ -85,7 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: ${{ env.FETCH_DEPTH }}
 
@@ -93,7 +93,7 @@ jobs:
         run: mkdir -p dist
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: ./dist
 
