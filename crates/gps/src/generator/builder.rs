@@ -695,6 +695,31 @@ impl SignalGeneratorBuilder {
         {
             // Scenario start time has been set.
             if time_override {
+                // Ephemeris time override logic (-T flag):
+                // This logic shifts the ephemerides' TOC/TOE to match the
+                // simulation start time.
+                //
+                // CRITICAL DIFFERENCE vs OLD RUST IMPLEMENTATION:
+                // Previously, the Rust version would greedily select the first
+                // ephemeris set when time_override was enabled,
+                // ignoring the validity of the time window. The
+                // C version, however, correctly searches for the *most
+                // relevant* ephemeris set by checking if the
+                // (adjusted) TOC falls within +/- 2 hours of the simulation
+                // time.
+                //
+                // Correct behavior (C-aligned):
+                // 1. Adjust ALL ephemeris sets by shifting their TOC/TOE.
+                // 2. Later in the code (see "Select the current set of
+                //    ephemerides"), STRICTLY select the ephemeris set where
+                //    |TOC - SimTime| < 2 hours.
+                //
+                // This ensures that even with a time override, we use the
+                // ephemeris parameters that are physically most
+                // relevant to the target orbital position (e.g. choosing
+                // "Monday's" ephemeris for a Monday simulation, even if we
+                // shifted the year).
+
                 // Round to nearest 2-hour boundary (7200 seconds)
                 // This matches the C version's behavior exactly: gtmp.sec =
                 // (double)(((int)(g0.sec)) / 7200) * 7200.0;
@@ -738,10 +763,7 @@ impl SignalGeneratorBuilder {
             for e in eph_item.iter().take(MAX_SAT) {
                 if e.vflg {
                     let dt = receiver_gps_time.diff_secs(&e.toc);
-                    // Relax the time constraint when time_override is true
-                    if time_override
-                        || (-SECONDS_IN_HOUR..SECONDS_IN_HOUR).contains(&dt)
-                    {
+                    if (-SECONDS_IN_HOUR..SECONDS_IN_HOUR).contains(&dt) {
                         valid_ephemerides_index = Some(i);
                         break;
                     }

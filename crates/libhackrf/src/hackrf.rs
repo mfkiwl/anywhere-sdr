@@ -1,10 +1,8 @@
 use std::time::Duration;
 
 use nusb::{
-    transfer::{
-        ControlIn, ControlOut, ControlType, Recipient,
-    },
-    Device, DeviceInfo, Interface, MaybeFuture, Endpoint,
+    Device, DeviceInfo, Endpoint, Interface, MaybeFuture,
+    transfer::{ControlIn, ControlOut, ControlType, Recipient},
 };
 
 use crate::{constants::*, enums::*, error::Error};
@@ -999,12 +997,8 @@ impl HackRF {
     /// A `nusb::Endpoint` for bulk IN transfers.
     pub fn rx_queue(
         &mut self,
-    ) -> Result<
-        Endpoint<nusb::transfer::Bulk, nusb::transfer::In>,
-        Error,
-    > {
-        Ok(self.interface
-            .endpoint(HACKRF_RX_ENDPOINT_ADDRESS)?)
+    ) -> Result<Endpoint<nusb::transfer::Bulk, nusb::transfer::In>, Error> {
+        Ok(self.interface.endpoint(HACKRF_RX_ENDPOINT_ADDRESS)?)
     }
 
     /// Gets an endpoint for sending data to the device
@@ -1017,12 +1011,9 @@ impl HackRF {
     /// A `nusb::Endpoint` for bulk OUT transfers.
     pub fn tx_queue(
         &mut self,
-    ) -> Result<
-        Endpoint<nusb::transfer::Bulk, nusb::transfer::Out>,
-        Error,
-    > {
-        Ok(self.interface
-            .endpoint(HACKRF_TX_ENDPOINT_ADDRESS)?)
+    ) -> Result<Endpoint<nusb::transfer::Bulk, nusb::transfer::Out>, Error>
+    {
+        Ok(self.interface.endpoint(HACKRF_TX_ENDPOINT_ADDRESS)?)
     }
 
     /// Stops receiving mode

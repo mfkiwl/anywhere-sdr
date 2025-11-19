@@ -210,12 +210,11 @@ fn string_to_args(value: &str) -> Vec<Vec<String>> {
 
 /// Test time override functionality
 /// Set simulation start time and enable TOC and TOE override, verify against C
-/// version output Note: This functionality may need to be fixed
+/// version output
 #[test_case("-e=resources/brdc0010.22n;-b=1;-d=31.0;-o=output/time_override_toc_toe.bin;-t=2022/01/01,11:45:14;-T", "output/c_time_override_toc_toe.bin"; "test_time_override_toc_toe")]
 
 /// Test leap second settings
 /// Set leap second parameters and verify against C version output
-/// Note: This functionality may need to be fixed
 #[test_case("-e=resources/brdc0010.22n;-b=1;-d=31.0;-o=output/time_leap_second.bin;-l=42.3569048,-71.2564075,0;-t=2022/01/01,23:55;-T;-L=2347,3,17", "output/c_time_leap_second.bin"; "test_leap_second_settings")]
 // Ionospheric and verbose output tests
 /// Test ionospheric delay disable
@@ -292,17 +291,7 @@ fn test_builder(params: &str, c_bin_file: &str) -> Result<(), Error> {
         .and_then(|n| n.to_str())
         .ok_or_else(|| gps::Error::msg("Cannot get file name"))?;
 
-    // For leap second and time override tests, we don't compare file contents
-    // because there might be slight differences in the signal generation
-    // process
-    if rust_file_name == "time_leap_second.bin"
-        || rust_file_name == "time_override_toc_toe.bin"
-    {
-        std::fs::remove_file(&rust_file)?;
-        return Ok(());
-    }
-
-    // For other tests, compare file contents
+    // Compare file contents
     let c_bin_path = PathBuf::from(&c_bin_file_full);
 
     // Check if C version output file exists

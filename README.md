@@ -234,8 +234,6 @@ cargo test -p libhackrf -- --ignored
 cargo test -p libhackrf list_device -- --ignored
 ```
 
-Note: Some tests (like leap second handling and time override) don't compare binary outputs directly due to slight implementation differences between the Rust and C versions.
-
 ### Compatibility Tests
 
 The following compatibility tests have been implemented and verified:
